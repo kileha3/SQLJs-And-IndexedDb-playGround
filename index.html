@@ -10,7 +10,6 @@
         updateStatus(event.data.results ? JSON.stringify(event.data.results[0].values[0]):"No data found")
         break;
       case 5:
-        const mBlob = new Blob(event.data.buffer)
         await importExportedSQLJsToIndexedDb(event.data.buffer)
         break;
     }
