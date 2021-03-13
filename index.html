@@ -20,7 +20,6 @@
   initSQLJsDb = (withTables = true,buffrer) => {
     var options = {id:1,action:"open"}
     if(buffrer){
-      console.log(buffrer)
       options['buffer'] = buffrer
     }
     worker.postMessage(options);
@@ -31,6 +30,8 @@
       worker.postMessage({id: 3,action: "exec",
         sql: "INSERT INTO Person (username, password) VALUES ('John','1234'), ('Doe','2345')"
       });
+    }else{
+      updateStatus("IndexedDb imported to SQLJs")
     }
   }
 
@@ -88,13 +89,17 @@
   }
 
   importExportedSQLJsToIndexedDb = async (blob) => {
-    const initialized = await initIndexedDb()
-    const req = indexedDB.open(dbName)
-    req.onsuccess = event => {
-      db = event.target.result
-      const store = db.transaction(storeName, 'readwrite').objectStore(storeName);
-      store.put(blob,"data")
-      updateStatus("SQLJS data was exported to IndexedDb")
+    if(blob){
+      const initialized = await initIndexedDb()
+      const req = indexedDB.open(dbName)
+      req.onsuccess = event => {
+        db = event.target.result
+        const store = db.transaction(storeName, 'readwrite').objectStore(storeName);
+        store.put(blob,"data")
+        updateStatus("SQLJs Db was imported to IndexedDb")
+      }
+    }else{
+      updateStatus("SQLJs database was not initailized")
     }
   }
 
