@@ -1,0 +1,115 @@
+<meta charset="utf8" />
+<html>
+  
+  <script>
+  var worker = new Worker("/node_modules/sql.js/dist/worker.sql-asm.js"),
+   storeName = "um_storage", dbName = "UmDatabase", db = null
+  worker.onmessage = event => {
+    switch(event.data.id){
+      case 4:
+        updateStatus(JSON.stringify(event.data.results[0].values[0]))
+        break;
+      case 5:
+        const mBlob = new Blob([event.data])
+        importSQLJsToIndexedDb(mBlob)
+        break;
+    }
+  };
+  worker.onerror = e => console.log("Worker error: ", e);
+  worker.postMessage({id:1,action:"open"});
+  worker.postMessage({id: 2,action: "exec",
+    sql: "CREATE TABLE Person (username, password)"
+  });
+  worker.postMessage({id: 3,action: "exec",
+    sql: "INSERT INTO Person (username, password) VALUES ('John','1234'), ('Doe','2345')"
+  });
+
+  query = (param) =>{
+    worker.postMessage({id: 4,action: "exec",
+    sql: "SELECT * FROM Person WHERE username=:name",
+    params: {":name":param}});
+  }
+
+  exportDb = () => {
+    worker.postMessage({id:5,action:"export"});
+  }
+
+  initDb = () => {
+    const req = indexedDB.open(dbName);
+    req.onupgradeneeded =  event => {
+      const db = event.target.result
+      if (!db.objectStoreNames.contains(storeName)){
+        const store = db.createObjectStore(storeName, { keyPath: 'id', autoIncrement: true });
+        store.createIndex('data', 'data', { unique: true});
+      }
+    }
+  }
+
+   doDbExists = () => {
+    const req = indexedDB.open(dbName);
+    var existed = true;
+    req.onupgradeneeded =  event => {
+      existed = false
+    }
+    req.onsuccess = event => {
+      if(!existed){
+        indexedDB.deleteDatabase(dbName)
+      }
+    }
+    return new Promise(resolve => {
+    setTimeout(() => {
+      resolve(existed);
+    }, 50);
+  });
+  }
+
+   checkIfDbExistsAndInit = async () => {
+    const exists = await doDbExists()
+    var events = `Db exists => ${exists}`
+    if(!exists){
+      initDb()
+    }
+    if(!exists){
+      events += "<br/> Db created"
+    }
+
+    updateStatus(events)
+  }
+
+  importSQLJsToIndexedDb = (blob) => {
+    const req = indexedDB.open(dbName)
+    req.onsuccess = event => {
+      db = event.target.result
+      const store = db.transaction(storeName, 'readwrite').trans.objectStore(storeName);
+      store.put(blob,"data")
+    }
+    updateStatus("SQLJS data was exported to IndexedDb")
+  }
+
+  importIndexDbToSQLJs = () => {
+    const req = indexedDB.open(dbName)
+    req.onsuccess = event => {
+      db = event.target.result
+      const store = db.transaction(storeName, 'readwrite').objectStore(storeName).get("data")
+      store.onsuccess = async(data) => {
+        console.log(await data.target.result.arrayBuffer())
+      }
+    }
+  }
+
+  updateStatus = (status) => {
+    document.getElementById("playground").innerHTML = status
+  }
+
+  </script>
+  <body>
+    <button onclick = "checkIfDbExistsAndInit()">Check if Db Exists & init</button>
+    <button onclick="query('John')">Query John</button>
+    <button onclick = "exportDb()">Export SQLJs to IndexedDb</button>
+    <button onclick="importIndexDbToSQLJs()">Export IndexedDb to SQLJs</button>
+
+    <div id = "playground">
+
+    </div>
+  </body>
+</html>
